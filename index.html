@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Scheduler</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Meeting Scheduler</h1>
+    </header>
+    <main>
+        <section id="scheduler">
+            <h2>Schedule a Meeting</h2>
+            <form id="meeting-form">
+                <label for="meeting-name">Meeting Name:</label>
+                <input type="text" id="meeting-name" placeholder="Enter meeting name" required>
+
+                <label for="start-time">Start Time:</label>
+                <input type="time" id="start-time" required>
+
+                <label for="end-time">End Time:</label>
+                <input type="time" id="end-time" required>
+
+                <button type="submit">Check Availability</button>
+            </form>
+        </section>
+
+        <section id="rooms">
+            <h2>Available Rooms</h2>
+            <img class="character" id="character" src="character.png" alt="Person Character"> <!-- شخصية -->
+            <div class="room" id="room-1" data-name="Room A">
+                <h3>Room A</h3>
+                <ul class="schedule">
+                    <li>No meetings scheduled</li>
+                </ul>
+            </div>
+            <div class="room" id="room-2" data-name="Room B">
+                <h3>Room B</h3>
+                <ul class="schedule">
+                    <li>No meetings scheduled</li>
+                </ul>
+            </div>
+            <div class="room" id="room-3" data-name="Room C">
+                <h3>Room C</h3>
+                <ul class="schedule">
+                    <li>No meetings scheduled</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2024 Meeting Scheduler</p>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
