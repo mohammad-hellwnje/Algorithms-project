@@ -1,22 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
+    const rooms = ["Room A", "Room B", "Room C"];
+    let schedules = loadSchedulesFromStorage();
     const meetingForm = document.getElementById("meeting-form");
-    const rooms = document.querySelectorAll(".room");
-    const character = document.getElementById("character");
-    const characterStartX = character.getBoundingClientRect().left;
-
-    // استرجاع الاجتماعات المحفوظة من localStorage عند تحميل الصفحة
-    rooms.forEach((room, index) => {
-        const schedule = room.querySelector(".schedule");
-        const roomMeetings = JSON.parse(localStorage.getItem(`room${index}`)) || [];
-
-        if (roomMeetings.length > 0) {
-            schedule.innerHTML = ""; // إزالة "No meetings scheduled" إذا كان هناك اجتماعات
-            roomMeetings.forEach(meetingData => {
-                const newMeeting = createMeetingElement(meetingData.name, meetingData.start, meetingData.end, schedule, index);
-                schedule.appendChild(newMeeting);
-            });
-        }
-    });
 
     meetingForm.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -35,90 +20,106 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        let roomFound = false;
+        const meeting = { name: meetingName, start: startTime, end: endTime };
+        const assignedRoom = cspAssignRoomCSP(meeting, schedules, rooms);  // استخدم خوارزمية CSP
 
-        for (const [index, room] of rooms.entries()) {
-            const schedule = room.querySelector(".schedule");
-            const meetings = schedule.querySelectorAll("li");
-            let canSchedule = true;
-
-            meetings.forEach((meeting) => {
-                if (meeting.textContent.includes("No meetings scheduled")) return;
-
-                const [meetingStart, meetingEnd] = meeting.getAttribute("data-time").split("-");
-                if (
-                    (startTime >= meetingStart && startTime < meetingEnd) ||
-                    (endTime > meetingStart && endTime <= meetingEnd)
-                ) {
-                    canSchedule = false;
-                }
-            });
-
-            if (canSchedule) {
-                roomFound = true;
-
-                const newMeeting = createMeetingElement(meetingName, startTime, endTime, schedule, index);
-
-                if (meetings.length === 1 && meetings[0].textContent.includes("No meetings scheduled")) {
-                    schedule.innerHTML = ""; // إزالة "No meetings scheduled"
-                }
-                schedule.appendChild(newMeeting);
-
-                // حفظ الاجتماع في localStorage
-                saveMeetingToLocalStorage(index, meetingName, startTime, endTime);
-
-                alert(`Meeting "${meetingName}" scheduled in ${room.querySelector("h3").textContent}.`);
-
-                // Move character to room
-                const roomRect = room.getBoundingClientRect();
-                character.style.left = `${roomRect.left - characterStartX + 20}px`;
-
-                break;
-            }
-        }
-
-        if (!roomFound) {
+        if (assignedRoom) {
+            alert(`Meeting "${meetingName}" scheduled in ${assignedRoom}.`);
+            // إضافة الاجتماع فقط بعد تخصيص الغرفة بنجاح
+            schedules[assignedRoom].push(meeting);
+            schedules[assignedRoom].sort((a, b) => a.start.localeCompare(b.start));
+            saveSchedulesToStorage(schedules);
+            renderRoomSchedule(assignedRoom);
+        } else {
             alert("No available rooms for the specified time.");
-            // Return character to start position
-            character.style.left = "0";
         }
 
         meetingForm.reset();
     });
 
-    // دالة لإنشاء عنصر الاجتماع
-    function createMeetingElement(meetingName, startTime, endTime, schedule, roomIndex) {
-        const newMeeting = document.createElement("li");
-        newMeeting.textContent = `${meetingName} (${startTime} - ${endTime})`;
-        newMeeting.setAttribute("data-time", `${startTime}-${endTime}`);
-        
-        const cancelButton = document.createElement("button");
-        cancelButton.textContent = "Cancel";
-        cancelButton.addEventListener("click", () => {
-            newMeeting.remove();
-            removeMeetingFromLocalStorage(roomIndex, startTime, endTime);
-            if (!schedule.querySelector("li")) {
-                schedule.innerHTML = "<li>No meetings scheduled</li>";
-            }
+    // خوارزمية CSP لتخصيص الغرف
+    function cspAssignRoomCSP(meeting, schedules, rooms) {
+        const availableRooms = rooms.filter(room => isRoomAvailable(room, meeting, schedules));
+
+        if (availableRooms.length > 0) {
+            const room = availableRooms[0];  // تخصيص أول غرفة متاحة
+            return room;  // فقط إرجاع الغرفة المتاحة دون إضافة الاجتماع هنا
+        }
+
+        return null;
+    }
+
+    function isRoomAvailable(room, meeting, schedules) {
+        const meetingStart = new Date(`1970-01-01T${meeting.start}:00`);
+        const meetingEnd = new Date(`1970-01-01T${meeting.end}:00`);
+
+        return schedules[room].every(scheduledMeeting => {
+            const scheduledStart = new Date(`1970-01-01T${scheduledMeeting.start}:00`);
+            const scheduledEnd = new Date(`1970-01-01T${scheduledMeeting.end}:00`);
+
+            return meetingEnd <= scheduledStart || meetingStart >= scheduledEnd;
         });
-
-        newMeeting.appendChild(cancelButton);
-        return newMeeting;
     }
 
-    // دالة لحفظ الاجتماع في localStorage
-    function saveMeetingToLocalStorage(roomIndex, meetingName, startTime, endTime) {
-        const roomMeetings = JSON.parse(localStorage.getItem(`room${roomIndex}`)) || [];
-        roomMeetings.push({ name: meetingName, start: startTime, end: endTime });
-        localStorage.setItem(`room${roomIndex}`, JSON.stringify(roomMeetings));
+    function renderRoomSchedule(room) {
+        const roomElement = document.querySelector(`[data-name="${room}"] .schedule`);
+        roomElement.innerHTML = "";
+
+        if (!schedules[room] || schedules[room].length === 0) {
+            roomElement.innerHTML = "<li>No meetings scheduled</li>";
+            return;
+        }
+
+        schedules[room].forEach((meeting) => {
+            if (!meeting || !meeting.name || !meeting.start || !meeting.end) {
+                return;
+            }
+
+            const li = document.createElement("li");
+            li.textContent = `${meeting.name} (${meeting.start} - ${meeting.end})`;
+
+            const cancelButton = document.createElement("button");
+            cancelButton.textContent = "Cancel";
+            cancelButton.classList.add("cancel-button");
+            cancelButton.addEventListener("click", () => {
+                cancelMeeting(room, meeting);
+            });
+
+            li.appendChild(cancelButton);
+            roomElement.appendChild(li);
+        });
     }
 
-    // دالة لإزالة الاجتماع من localStorage
-    function removeMeetingFromLocalStorage(roomIndex, startTime, endTime) {
-        const roomMeetings = JSON.parse(localStorage.getItem(`room${roomIndex}`)) || [];
-        const updatedMeetings = roomMeetings.filter(
-            meeting => !(meeting.start === startTime && meeting.end === endTime)
+    function cancelMeeting(room, meeting) {
+        schedules[room] = schedules[room].filter(
+            (m) => m.start !== meeting.start || m.end !== meeting.end
         );
-        localStorage.setItem(`room${roomIndex}`, JSON.stringify(updatedMeetings));
+
+        saveSchedulesToStorage(schedules);
+        renderRoomSchedule(room);
+        alert(`Meeting "${meeting.name}" has been canceled.`);
     }
+
+    function loadSchedulesFromStorage() {
+        const storedSchedules = localStorage.getItem("schedules");
+        let parsedSchedules = { "Room A": [], "Room B": [], "Room C": [] };
+
+        if (storedSchedules) {
+            parsedSchedules = JSON.parse(storedSchedules);
+
+            rooms.forEach(room => {
+                if (!parsedSchedules[room]) {
+                    parsedSchedules[room] = [];
+                }
+            });
+        }
+
+        return parsedSchedules;
+    }
+
+    function saveSchedulesToStorage(schedules) {
+        localStorage.setItem("schedules", JSON.stringify(schedules));
+    }
+
+    rooms.forEach(renderRoomSchedule);
 });
